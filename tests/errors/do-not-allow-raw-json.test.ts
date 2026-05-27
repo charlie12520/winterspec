@@ -100,6 +100,36 @@ test("should serialize ctx.json returned by adapter middleware", async (t) => {
   t.deepEqual(await response.json(), { intercepted: true })
 })
 
+test("should throw a helpful error when adapter middleware returns undefined", async (t) => {
+  const withRouteSpec = createWithWinterSpec({
+    authMiddleware: {},
+  })
+  const winterSpec = createWinterSpecFromRouteMap({
+    "/": withRouteSpec({
+      methods: ["GET"],
+      auth: "none",
+      jsonResponse: z.any(),
+    })((req, ctx) => {
+      return ctx.json({ ok: true })
+    }),
+  })
+
+  const error = await t.throwsAsync(
+    winterSpec.makeRequest(new Request("https://example.com/"), {
+      middleware: [
+        async () => {
+          return undefined as any
+        },
+      ],
+    })
+  )
+  t.true(
+    error?.message.includes(
+      "WinterSpec handlers must return a Response or ctx.json(...)."
+    )
+  )
+})
+
 test("should throw an error when handle404 responds with raw JSON", async (t) => {
   const withRouteSpec = createWithWinterSpec({
     authMiddleware: {},
@@ -156,4 +186,34 @@ test("should serialize ctx.json returned by handle404", async (t) => {
   t.true(response instanceof Response)
   t.is(response.status, 200)
   t.deepEqual(await response.json(), { error: "not found" })
+})
+
+test("should throw a helpful error when handle404 returns a primitive", async (t) => {
+  const withRouteSpec = createWithWinterSpec({
+    authMiddleware: {},
+  })
+  const winterSpec = createWinterSpecFromRouteMap(
+    {
+      "/": withRouteSpec({
+        methods: ["GET"],
+        auth: "none",
+      })(() => {
+        return new Response("ok")
+      }),
+    },
+    {
+      handle404: (() => {
+        return "not found"
+      }) as any,
+    }
+  )
+
+  const error = await t.throwsAsync(
+    winterSpec.makeRequest(new Request("https://example.com/missing"))
+  )
+  t.true(
+    error?.message.includes(
+      "WinterSpec handlers must return a Response or ctx.json(...)."
+    )
+  )
 })

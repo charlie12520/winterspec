@@ -167,5 +167,7 @@ function serializeAdapterMiddlewareResponse(response: unknown): Response {
     )
   }
 
-  return response as Response
+  throw new Error(
+    "WinterSpec handlers must return a Response or ctx.json(...)."
+  )
 }
